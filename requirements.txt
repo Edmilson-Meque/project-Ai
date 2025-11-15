@@ -6,3 +6,4 @@ joblib
 gunicorn
 sqlalchemy
 psycopg2-binary
+flask_sqlalchemy
