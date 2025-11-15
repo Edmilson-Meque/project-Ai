@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en"> <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Health Monitor</title> <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        
+        <header>
+            <button class="btn-refresh" onclick="reloadPage()">New Reading 🔄</button>
+            
+            <h1>AI Health Dashboard</h1> <p>Real-time Monitoring</p> </header>
+        
+        <div class="status {{ 'anomaly' if data.status == 'Anomaly Detected!' else 'normal' }}">
+            <h2>Current Status: <strong>{{ data.status }}</strong></h2>
+        </div>
+        
+        <div class="metrics">
+            <div class="metric-card">
+                <h3>❤️ Heart Rate</h3>
+                <p class="value">{{ data.heart_rate }} <span>bpm</span></p>
+            </div>
+            <div class="metric-card">
+                <h3>💨 Blood Oxygen</h3>
+                <p class="value">{{ data.blood_oxygen }} <span>%</span></p>
+            </div>
+        </div>
+        
+        <div class="recommendation">
+            <h3>AI Recommendation:</h3>
+            <p>{{ data.recommendation }}</p>
+        </div>
+
+        <div class="history-chart">
+            <h3>Recent History</h3>
+            <canvas id="healthChart"></canvas>
+        </div>
+
+    </div>
+    <script>
+        // Renamed function
+        function reloadPage() {
+            location.reload();
+        }
+
+        // Translated comment
+        // We pass the data from Flask (Python) to JavaScript
+        const historyData = JSON.parse('{{ history|tojson|safe }}');
+        
+        const ctx = document.getElementById('healthChart').getContext('2d');
+        const healthChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: historyData.labels, // Translated comment: X-Axis (Time)
+                datasets: [
+                    {
+                        // Translated label
+                        label: 'Heart Rate (bpm)',
+                        data: historyData.heart_rates, // Translated comment: Y-Axis
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        // Translated label
+                        label: 'Blood Oxygen (%)',
+                        data: historyData.blood_oxygens, // Y-Axis
+                        borderColor: 'rgb(54, 162, 235)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        fill: false,
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: false
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

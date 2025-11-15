@@ -1,0 +1,144 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f4f7f6;
+    color: #333;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+.container {
+    width: 100%;
+    max-width: 800px;
+    background-color: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+
+/* --- SECÇÃO DO HEADER ACTUALIZADA --- */
+header {
+    background: linear-gradient(90deg, #007bff, #0056b3);
+    color: white;
+    padding: 25px 30px;
+    text-align: center;
+    position: relative; /* Adicionado para posicionar o botão */
+}
+header h1 {
+    margin: 0;
+    font-size: 1.8em;
+}
+header p {
+    margin: 5px 0 0;
+    opacity: 0.9;
+}
+
+/* --- NOVO ESTILO DO BOTÃO --- */
+header .btn-refresh {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background-color: #ffffff;
+    color: #0056b3; /* Cor azul escura do gradiente */
+    border: none;
+    border-radius: 20px;
+    padding: 8px 15px;
+    font-size: 0.9em;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    transition: all 0.2s ease-in-out;
+}
+header .btn-refresh:hover {
+    background-color: #f0f0f0;
+    transform: scale(1.05);
+}
+/* --- FIM DAS ALTERAÇÕES NO HEADER --- */
+
+.status {
+    padding: 20px 30px;
+    text-align: center;
+    font-size: 1.25em;
+    font-weight: 600;
+}
+.status.normal {
+    background-color: #e6f7ec;
+    color: #1e4620;
+}
+.status.normal strong {
+    color: #28a745;
+}
+.status.anomaly {
+    background-color: #fbeae5;
+    color: #5a1d0c;
+}
+.status.anomaly strong {
+    color: #dc3545;
+    font-weight: 900;
+    animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+.metrics {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    padding: 30px;
+    border-bottom: 1px solid #eee;
+}
+.metric-card {
+    text-align: center;
+    padding: 20px;
+    border-radius: 10px;
+    background-color: #fafafa;
+    border: 1px solid #e9e9e9;
+    width: 45%;
+    min-width: 200px;
+    margin: 10px 5px;
+}
+.metric-card h3 {
+    margin-top: 0;
+    font-size: 1.1em;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.metric-card .value {
+    font-size: 3em;
+    font-weight: 700;
+    color: #007bff;
+}
+.metric-card .value span {
+    font-size: 0.5em;
+    font-weight: 400;
+    color: #777;
+    margin-left: 5px;
+}
+.recommendation {
+    padding: 30px;
+    text-align: center;
+    background-color: #fdfdfd;
+}
+.recommendation h3 {
+    color: #333;
+    border-bottom: 2px solid #007bff;
+    display: inline-block;
+    padding-bottom: 5px;
+    margin-bottom: 15px;
+}
+.recommendation p {
+    font-size: 1.15em;
+    color: #444;
+    line-height: 1.6;
+    margin: 0;
+}
+.history-chart {
+    padding: 30px;
+    padding-top: 10px;
+    text-align: center;
+}
