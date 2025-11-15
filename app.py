@@ -1,39 +1,43 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 import joblib
 import numpy as np
 import pandas as pd
-import sqlite3 # Importar a biblioteca da base de dados
-import atexit # Para fechar a base de dados ao sair
+from flask_sqlalchemy import SQLAlchemy
+import os # Para ler as variáveis de ambiente
 
 app = Flask(__name__)
 
-# --- Configuração da Base de Dados ---
-DB_NAME = 'health_data.db'
+# --- Configuração da Base de Dados (PostgreSQL) ---
 
+# 1. Lê o URL secreto da base de dados (que o Render nos vai dar)
+#    Se não encontrar (porque estamos a testar localmente), usa um ficheiro sqlite.
+db_url = os.environ.get('DATABASE_URL', 'sqlite:///local_test.db')
+
+# 2. Truque para o Heroku/Render (os URLs deles começam com "postgres://")
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app) # Inicia o objecto da base de dados
+
+# --- Modelo da Base de Dados ---
+# Isto define a estrutura da nossa tabela
+class HealthReading(db.Model):
+    __tablename__ = 'health_readings'
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, server_default=db.func.now())
+    heart_rate = db.Column(db.Integer)
+    blood_oxygen = db.Column(db.Integer)
+    status = db.Column(db.String(50))
+    recommendation = db.Column(db.String(255))
+
+# --- Cria a tabela (se não existir) ---
+# Esta função corre uma vez para criar as tabelas
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    # Criamos a tabela se ela não existir
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS health_readings (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        heart_rate INTEGER,
-        blood_oxygen INTEGER,
-        status TEXT,
-        recommendation TEXT
-    )
-    ''')
-    conn.commit()
-    conn.close()
-
-def get_db_connection():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    conn.text_factory = str  # <-- Verifique se esta linha AINDA ESTÁ AQUI
-    return conn
-# Executar init_db na inicialização
-init_db()
+    with app.app_context():
+        db.create_all()
 
 # --- Carregamento do Modelo de IA ---
 try:
@@ -43,6 +47,12 @@ except FileNotFoundError:
     print("!!! Erro: Ficheiro 'model.joblib' não encontrado.")
     print("!!! Por favor, execute 'python model.py' primeiro para treinar o modelo.")
     exit()
+
+# --- Função Helper (que já tinhas) ---
+def to_str(s):
+    if isinstance(s, bytes):
+        return s.decode('utf-8')
+    return s
 
 def get_real_time_data():
     """Simula uma única e nova leitura do dispositivo wearable."""
@@ -58,10 +68,13 @@ def get_real_time_data():
             blood_oxygen = np.random.randint(85, 93)
     return {'heart_rate': heart_rate, 'blood_oxygen': blood_oxygen}
 
+# --- Rota Principal (Atualizada com SQLAlchemy) ---
 @app.route('/')
 def home():
     # 1. Obter "novos" dados do wearable
     current_data = get_real_time_data()
+    hr = current_data['heart_rate']
+    o2 = current_data['blood_oxygen']
     
     # 2. Preparar os dados para o modelo
     data_point = pd.DataFrame([current_data])
@@ -74,48 +87,60 @@ def home():
     status = 'Normal'
     recommendation = 'Your vital signs are stable. Keep up your healthy habits.'
     
-    if prediction[0] == -1: # Anomalia Detectada!
+    if prediction[0] == -1: # Anomalia
         status = 'Anomaly Detected!'
-        if current_data['blood_oxygen'] < 94:
-            recommendation = 'Blood oxygen level is low ({}%). Please rest and take deep breaths.'.format(current_data['blood_oxygen'])
-        elif current_data['heart_rate'] < 60 or current_data['heart_rate'] > 100:
-            recommendation = 'Irregular heart rate detected ({} bpm). Try to relax.'.format(current_data['heart_rate'])
+        if o2 < 94:
+            recommendation = f'Blood oxygen level is low ({o2}%). Please rest and take deep breaths.'
+        elif hr < 60 or hr > 100:
+            recommendation = f'Irregular heart rate detected ({hr} bpm). Try to relax.'
         else:
              recommendation = 'We detected an unusual reading. Monitor your symptoms and rest.'
 
-    # 5. GUARDAR os dados na base de dados
-    conn = get_db_connection()
-    conn.execute(
-        "INSERT INTO health_readings (heart_rate, blood_oxygen, status, recommendation) VALUES (?, ?, ?, ?)",
-        (current_data['heart_rate'], current_data['blood_oxygen'], status, recommendation)
-    )
-    conn.commit()
-    conn.close()
+    # 5. GUARDAR os dados na base de dados (novo código SQLAlchemy)
+    try:
+        nova_leitura = HealthReading(
+            heart_rate=hr,
+            blood_oxygen=o2,
+            status=status,
+            recommendation=recommendation
+        )
+        db.session.add(nova_leitura)
+        db.session.commit()
+    except Exception as e:
+        print(f"Erro ao guardar na DB: {e}")
+        db.session.rollback()
 
-    # 6. LER o histórico da base de dados (últimos 20)
-    conn = get_db_connection()
-    readings_from_db = conn.execute(
-        "SELECT timestamp, heart_rate, blood_oxygen FROM health_readings ORDER BY timestamp DESC LIMIT 20"
-    ).fetchall()
-    conn.close()
+    # 6. LER o histórico da base de dados (novo código SQLAlchemy)
+    readings_from_db = HealthReading.query.order_by(HealthReading.timestamp.desc()).limit(20).all()
 
-    # Preparar dados para o gráfico (precisamos de reverter a ordem para o gráfico ficar cronológico)
+    # Preparar dados para o gráfico
     history = {
-        'labels': [r['timestamp'].split(' ')[1] for r in reversed(readings_from_db)], # Apenas a hora
-        'heart_rates': [r['heart_rate'] for r in reversed(readings_from_db)],
-        'blood_oxygens': [r['blood_oxygen'] for r in reversed(readings_from_db)]
+        'labels': [to_str(r.timestamp.strftime('%Y-%m-%d %H:%M:%S')).split(' ')[1] for r in reversed(readings_from_db)],
+        'heart_rates': [r.heart_rate for r in reversed(readings_from_db)],
+        'blood_oxygens': [r.blood_oxygen for r in reversed(readings_from_db)]
     }
 
     # 7. Enviar todos os dados para a página web
     health_data = {
-        'heart_rate': current_data['heart_rate'],
-        'blood_oxygen': current_data['blood_oxygen'],
+        'heart_rate': hr,
+        'blood_oxygen': o2,
         'status': status,
         'recommendation': recommendation
     }
     
-    # Passamos os dados actuais E o histórico
     return render_template('index.html', data=health_data, history=history)
 
+# --- Endpoint da API (Adicionado) ---
+@app.route('/api/predict', methods=['POST'])
+def api_predict():
+    # (Este é o código para a tua API, que discutimos antes)
+    # (Não está totalmente implementado aqui, mas a estrutura está pronta)
+    pass
+
+# --- Código para iniciar a aplicação ---
 if __name__ == '__main__':
+    init_db() # Cria as tabelas quando executas localmente
     app.run(debug=True)
+else:
+    # Isto é o que o Render vai usar para criar as tabelas na primeira vez
+    init_db()
